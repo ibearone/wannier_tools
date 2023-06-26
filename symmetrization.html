@@ -1,0 +1,105 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+    <title>2.4. Symmetrization of wannier90_hr.dat New usesful for ir2tb &#8212; WannierTools 2.6.2 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css" />
+    
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="3. Tutorial: learning WannierTools through examples" href="tutorials.html" />
+    <link rel="prev" title="2.3. Capabilities of WannierTools" href="features.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="tutorials.html" title="3. Tutorial: learning WannierTools through examples"
+             accesskey="N">next</a></li>
+        <li class="right" >
+          <a href="features.html" title="2.3. Capabilities of WannierTools"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">WannierTools 2.6.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="preliminaries.html" accesskey="U"><span class="section-number">2. </span>Preliminaries</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href=""><span class="section-number">2.4. </span>Symmetrization of wannier90_hr.dat <strong>New</strong>  usesful for ir2tb</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="symmetrization-of-wannier90-hr-dat-new-usesful-for-ir2tb">
+<h1><span class="section-number">2.4. </span>Symmetrization of wannier90_hr.dat <strong>New</strong>  usesful for ir2tb<a class="headerlink" href="#symmetrization-of-wannier90-hr-dat-new-usesful-for-ir2tb" title="Permalink to this heading">¶</a></h1>
+<p>Here is a brief introduction of the symmetrization functionalities. Basically, wannhr_symm is an independent package based on Python2.7
+written by Changming Yue (<a class="reference external" href="mailto:yuechangming8&#37;&#52;&#48;gmail&#46;com">yuechangming8<span>&#64;</span>gmail<span>&#46;</span>com</a>). Although this package is very useful, its requirement is also very restrict.</p>
+<ol class="arabic simple">
+<li><p>The Wannier functions must be atomic like, which means there should be very weak hybridization between orbitals. It’s not possible to deal with
+the sp2, sp3 like wannier orbitals.</p></li>
+<li><p>At present, it can only take care of the s, p, d, t2g, eg orbitals. p orbitals means all three orbitals ordered with pz, px, py.
+d orbitals are ordered as  “dz2”, “dxz”, “dyz”, “dx2-y2”, “dxy”. Such situation is automatically satisfied with in VASP+Wannier90</p></li>
+<li><p>The file name of tight binding Hamiltonian should be ‘wannier90_hr.dat’</p></li>
+<li><p>This symmetrization process is crucial to run “ir2tb” to order to obtain the correct irreducible representations, since the Wannier90 usually does not enforce the symmetries of the system.</p></li>
+</ol>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="features.html"
+                          title="previous chapter"><span class="section-number">2.3. </span>Capabilities of WannierTools</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="tutorials.html"
+                          title="next chapter"><span class="section-number">3. </span>Tutorial: learning WannierTools through examples</a></p>
+  </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="tutorials.html" title="3. Tutorial: learning WannierTools through examples"
+             >next</a></li>
+        <li class="right" >
+          <a href="features.html" title="2.3. Capabilities of WannierTools"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">WannierTools 2.6.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="preliminaries.html" ><span class="section-number">2. </span>Preliminaries</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href=""><span class="section-number">2.4. </span>Symmetrization of wannier90_hr.dat <strong>New</strong>  usesful for ir2tb</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, WannierTools Team.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>
