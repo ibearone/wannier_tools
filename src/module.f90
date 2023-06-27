@@ -362,11 +362,12 @@
 
      character(80) :: Hrfile
      character(80) :: Particle
+     character(80) :: Hr_Ene_Unit
      character(80) :: Package
      character(80) :: KPorTB
      real(dp) :: vef
      logical :: Is_Sparse_Hr, Is_Sparse, Use_ELPA, Is_Hrfile
-     namelist / TB_FILE / Hrfile, Particle, Package, KPorTB, Is_Hrfile, Is_Sparse, Is_Sparse_Hr, Use_ELPA,vef
+     namelist / TB_FILE / Hrfile, Particle, Package, KPorTB, Is_Hrfile, Is_Sparse, Is_Sparse_Hr, Use_ELPA,vef, Hr_Ene_Unit
 
      !> control parameters
      logical :: BulkBand_calc    ! Flag for bulk energy band calculation

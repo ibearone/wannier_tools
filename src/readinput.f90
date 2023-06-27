@@ -44,6 +44,7 @@ subroutine readinput
    Particle='electron'
    Package= 'VASP'
    KPorTB = 'TB'
+   Hr_Ene_Unit='eV'
    Is_HrFile= .TRUE.
    Is_Sparse_Hr= .FALSE.
    Is_Sparse   = .FALSE.
@@ -53,6 +54,7 @@ subroutine readinput
    if (stat/=0) then
       Hrfile='wannier90_hr.dat'
       Particle='electron'
+      Hr_Ene_Unit='eV'
       inquire(file='wannier90_hr.dat',exist=exists)
 
       backspace(1001)
@@ -75,6 +77,7 @@ subroutine readinput
       end if
    end if
    if(cpuid==0)write(stdout,'(1x, a, a25)')"Tight-binding Hamiltonian filename : ",Hrfile
+   if(cpuid==0)write(stdout,'(1x, a, a25)')"Energy unit in Tight-binding Hamiltonian : ",Hr_Ene_Unit
    if(cpuid==0)write(stdout,'(1x, a, a25)')"System of particle: ", Particle
    if(cpuid==0)write(stdout,'(1x, a, a25)')"Tight-binding Hamiltonian obtained from package : ",Package
 
@@ -302,7 +305,7 @@ subroutine readinput
    SOC = 0
    SOC_in = 0
    E_FERMI = 0d0
-
+   
    !> By default magnetic field is zero
    Bx = 0d0
    By = 0d0

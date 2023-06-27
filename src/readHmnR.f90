@@ -82,7 +82,13 @@ subroutine readNormalHmnR()
       if (index(Particle,'phonon')/=0) then
          HmnR= HmnR*eV2Hartree*eV2Hartree ! from eV to Hartree
       else
+         if (index(Hr_Ene_Unit,'eV')/=0)then
          HmnR= HmnR*eV2Hartree ! from eV to Hartree
+         elseif(index(Hr_Ene_Unit,'hartree')/=0) then
+         HmnR= HmnR
+         else
+         stop "ERROR : check energy unit in hr file"
+         endif
       endif
 
    else
