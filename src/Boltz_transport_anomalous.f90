@@ -503,10 +503,11 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      integer :: m, n, i, j, ie, ialpha, ibeta, igamma
      integer :: ierr, knv3, nwann
      integer :: NumberofEta
-
-     real(dp) :: mu, Beta_fake, deno_fac, eta_local
+     
+     real(dp) :: mu, Beta_fake, eta_local
      real(dp) :: k(3)
-
+     complex(dp) :: deno_fac_1
+     complex(dp) :: deno_fac_2
      real(dp) :: time_start, time_end
 
      ! eigen value of H
@@ -519,9 +520,21 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
 
      !> sigma^gamma_{alpha, beta}, alpha, beta, gamma=1,2,3 for x, y, z
      !>  sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
-     real(dp), allocatable :: sigma_tensor_shc(:, :, :, :, :)
-     real(dp), allocatable :: sigma_tensor_shc_mpi(:, :, :, :, :)
-     
+
+     !> Berry curvature vectors for all bands
+     !if (Photon_E == 0d0) then
+     ! real(dp), allocatable :: sigma_tensor_shc(:, :, :, :, :)
+     ! real(dp), allocatable :: sigma_tensor_shc_mpi(:, :, :, :, :)
+
+     ! real(dp),allocatable :: Omega_spin(:)
+     ! real(dp),allocatable :: Omega_spin_t(:)
+     !else
+     complex(dp), allocatable :: sigma_tensor_shc(:, :, :, :, :)
+     complex(dp), allocatable :: sigma_tensor_shc_mpi(:, :, :, :, :)
+
+     complex(dp),allocatable :: Omega_spin(:)
+     complex(dp),allocatable :: Omega_spin_t(:)
+     !endif
      !> Fermi-Dirac distribution
      real(dp), external :: fermi
 
@@ -531,9 +544,8 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      complex(dp), allocatable :: j_spin_gamma_alpha(:, :)
      complex(dp), allocatable :: mat_t(:, :)
 
-     !> Berry curvature vectors for all bands
-     real(dp),allocatable :: Omega_spin(:)
-     real(dp),allocatable :: Omega_spin_t(:)
+     
+
 
      ! spin operator matrix spin_sigma_x,spin_sigma_y in spin_sigma_z representation
      complex(Dp),allocatable :: pauli_matrices(:, :, :) 
@@ -658,9 +670,15 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
                     do n= 1, Num_wann
                        do m= 1, Num_wann
                           if (m==n) cycle
-                          deno_fac= -2d0/((W(n)-W(m))**2+ eta_local**2)
+                           !if (Photon_E == 0d0) then
+                           ! deno_fac= -2d0/((W(n)-W(m))**2 + eta_local**2)
+                           !else
+                            deno_fac_1= zi*1d0/(W(n)-W(m))/((W(n)-W(m))+Photon_E*eV2Hartree+zi*eta_local)
+                            deno_fac_2= zi*1d0/(W(n)-W(m))/((W(n)-W(m))-Photon_E*eV2Hartree-zi*eta_local)
+                           !endif
                           Omega_spin(n)= Omega_spin(n)+ &
-                             aimag(j_spin_gamma_alpha(n, m)*Vmn_Ham(m, n, ibeta))*deno_fac
+                             j_spin_gamma_alpha(n, m)*Vmn_Ham(m, n, ibeta)*deno_fac_1 - &
+                             j_spin_gamma_alpha(m, n)*Vmn_Ham(n, m, ibeta)*deno_fac_2  
                        enddo
                     enddo
         
@@ -704,7 +722,7 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      if (cpuid.eq.0) then
         do ieta=1, NumberofEta
            write(etaname, '(f12.2)')eta_array(ieta)*1000d0/eV2Hartree
-           write(shcfilename, '(7a)')'sigma_shc_eta', trim(adjustl(etaname)), 'meV.txt'
+           write(shcfilename, '(7a)')'sigma_shc_eta', trim(adjustl(etaname)), 'meV_Re.txt'
            open(unit=outfileindex, file=shcfilename)
            write(outfileindex, '("#",10a)')' Spin hall conductivity in unit of (hbar/e)S/cm,', 'Brodening eta= ',  trim(adjustl(etaname)), ' meV'
            write(outfileindex, "('#column', i5, 3000i16)")(i, i=1, 28)
@@ -718,7 +736,37 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
               do ialpha=1, 3
               do ibeta =1, 3
                  if (ialpha*ibeta*igamma/=27)then
-                    write(outfileindex, '(200E16.8)', advance='no') sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
+                    write(outfileindex, '(200E16.8)', advance='no') real(sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta))
+                 else
+                    write(outfileindex, '(200E16.8)', advance='yes') sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
+                 endif
+              enddo
+              enddo
+              enddo
+           enddo
+        enddo ! ieta
+        close(outfileindex)
+     endif
+
+     outfileindex= outfileindex+ 1
+     if (cpuid.eq.0) then
+        do ieta=1, NumberofEta
+           write(etaname, '(f12.2)')eta_array(ieta)*1000d0/eV2Hartree
+           write(shcfilename, '(7a)')'sigma_shc_eta', trim(adjustl(etaname)), 'meV_Im.txt'
+           open(unit=outfileindex, file=shcfilename)
+           write(outfileindex, '("#",10a)')' Spin hall conductivity in unit of (hbar/e)S/cm,', 'Brodening eta= ',  trim(adjustl(etaname)), ' meV'
+           write(outfileindex, "('#column', i5, 3000i16)")(i, i=1, 28)
+           write(outfileindex, '("#",a13, 27a16)')'Eenergy (eV)', &
+             'xx^x', 'xy^x', 'xz^x', 'yx^x', 'yy^x', 'yz^x', 'zx^x', 'zy^x', 'zz^x', &
+             'xx^y', 'xy^y', 'xz^y', 'yx^y', 'yy^y', 'yz^y', 'zx^y', 'zy^y', 'zz^y', &
+             'xx^z', 'xy^z', 'xz^z', 'yx^z', 'yy^z', 'yz^z', 'zx^z', 'zy^z', 'zz^z'
+           do ie=1, OmegaNum
+              write(outfileindex, '(E16.8)', advance='no')energy(ie)/eV2Hartree
+              do igamma=1, 3
+              do ialpha=1, 3
+              do ibeta =1, 3
+                 if (ialpha*ibeta*igamma/=27)then
+                    write(outfileindex, '(200E16.8)', advance='no') aimag(sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta))
                  else
                     write(outfileindex, '(200E16.8)', advance='yes') sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
                  endif

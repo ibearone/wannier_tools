@@ -587,6 +587,7 @@
         NumRandomConfs, NumSelectedEigenVals, projection_weight_mode, topsurface_atom_index
     
      real(Dp) :: E_fermi  ! Fermi energy, search E-fermi in OUTCAR for VASP, set to zero for Wien2k
+     real(Dp) :: Photon_E ! Photon energy in conducitivity tensor (eV)
 
      real(dp) :: surf_onsite  !> surface onsite energy shift
     
@@ -622,7 +623,7 @@
         Add_Zeeman_Field, Effective_gfactor, Zeeman_energy_in_eV, &
         Electric_field_in_eVpA, Symmetrical_Electric_field_in_eVpA, &
         Inner_symmetrical_Electric_Field, ijmax, &
-        Vacuum_thickness_in_Angstrom
+        Vacuum_thickness_in_Angstrom, Photon_E
 
      real(dp),parameter :: alpha= 1.20736d0*1D-6  !> e/2/h*a*a   a=1d-10m, h is the planck constant then the flux equals alpha*B*s
 

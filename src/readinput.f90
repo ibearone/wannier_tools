@@ -286,7 +286,7 @@ subroutine readinput
       write(stdout, *) "LandauLevel_k_dos_calc            : ", LandauLevel_k_dos_calc
       write(stdout, *) "LandauLevel_B_dos_calc            : ", LandauLevel_B_dos_calc
       write(stdout, *) "FermiLevel_calc                   : ", FermiLevel_calc
-      write(stdout, *) "ANE_calc                      : ", ANE_calc
+      write(stdout, *) "ANE_calc                          : ", ANE_calc
       write(stdout, *) "Symmetry_Import_calc              : ", Symmetry_Import_calc
       write(stdout, *) "ChargeDensity_selected_bands_calc : ", ChargeDensity_selected_bands_calc
       write(stdout, *) "ChargeDensity_selected_energies_calc : ", ChargeDensity_selected_energies_calc
@@ -305,7 +305,7 @@ subroutine readinput
    SOC = 0
    SOC_in = 0
    E_FERMI = 0d0
-   
+   Photon_E = 0d0
    !> By default magnetic field is zero
    Bx = 0d0
    By = 0d0
@@ -387,7 +387,8 @@ subroutine readinput
       write(stdout, '(1x, a, i6)')"Number of Occupied bands:", NumOccupied
       write(stdout, '(1x, a, f12.6)')"Number of total electrons:", Ntotch
       write(stdout, '(1x, a, i6)')"With SOC or not in Hrfile:", SOC
-      write(stdout, '(1x, a, 3f16.6)')"Fermi energy (eV) :", E_FERMI
+      write(stdout, '(1x, a, 3f16.6)')"Fermi energy :", E_FERMI
+      write(stdout, '(1x, a, 3f16.6)')"Photon energy (eV) :", Photon_E
       write(stdout, '(1x, a, 3f16.6)')"surf_onsite (eV): ", surf_onsite
       write(stdout, '(1x, a, L)')"Add_Zeeman_Field: ", Add_Zeeman_Field
       write(stdout, '(1x, a, 3f16.6)')"Zeeman_energy_in_eV (eV): ",  Zeeman_energy_in_eV
