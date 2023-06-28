@@ -553,7 +553,7 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      real(dp), allocatable :: eta_array(:)
      character(80) :: shcfilename, etaname
 
-     NumberofEta=9
+     NumberofEta=1
 
      allocate(Vmn_Ham(Num_wann, Num_wann, 3))
      allocate(Vmn_wann(Num_wann, Num_wann, 3))
@@ -580,7 +580,8 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      Vmn_wann= 0d0
      pauli_matrices= 0d0
  
-     eta_array=(/0.1d0, 0.2d0, 0.4d0, 0.8d0, 1.0d0, 2d0, 4d0, 8d0, 10d0/)
+     !eta_array=(/0.1d0, 0.2d0, 0.4d0, 0.8d0, 1.0d0, 2d0, 4d0, 8d0, 10d0/)
+     eta_array =(/ 1d0 /)
      eta_array= eta_array*Eta_Arc
 
      nwann= Num_wann/2
