@@ -175,7 +175,6 @@ subroutine dHdk_atomicgauge(k, velocity_Wannier)
             pos_direct= irvec(:, iR)+ pos2- pos1
 
             call direct_cart_real(pos_direct, pos_cart, Origin_cell%lattice)
-
             dis= norm(pos_cart)
             if (dis> Rcut) cycle
 
@@ -193,6 +192,67 @@ subroutine dHdk_atomicgauge(k, velocity_Wannier)
 
    return
 end subroutine dHdk_atomicgauge
+
+! New velocity operator
+subroutine dHdk_atomicgauge_new(k, velocity_Wannier)
+   !> Velocity operator in Wannier basis using atomic gauge
+   !> First derivate of H(k); dH(k)/dk
+   use para, only : Nrpts, irvec, Origin_cell, HmnR, ndegen, &
+       Num_wann, dp, Rcut, pi2zi,  &
+       zi, soc, zzero, twopi
+   implicit none
+
+   !> momentum in 3D BZ
+   real(dp), intent(in) :: k(3)
+
+   !> velocity operator in Wannier basis using atomic gauge 
+   complex(dp), intent(out) :: velocity_Wannier(Num_wann, Num_wann, 3)
+
+   integer :: iR, i1, i2, i
+
+   real(dp) :: pos1(3), pos2(3), pos_cart(3), pos_direct(3), k_cart(3)
+   real(dp) :: kdotr, dis
+   complex(dp) :: ratio
+   real(dp), external :: norm
+   complex(dp) :: velocity_Wannier_direct(Num_wann, Num_wann, 3)
+   velocity_Wannier= zzero
+   velocity_Wannier_direct= zzero
+   do iR=1,Nrpts
+      do i2=1, Num_wann
+         pos2= Origin_cell%wannier_centers_direct(:, i2)
+         !> the second atom in unit cell R
+         do i1=1, Num_wann
+            !> the first atom in home unit cell
+            pos1= Origin_cell%wannier_centers_direct(:, i1)
+            pos_direct= irvec(:, iR)+ pos2- pos1
+
+            call direct_cart_real(pos_direct, pos_cart, Origin_cell%lattice)
+            call direct_cart_real(k, k_cart, Origin_cell%reciprocal_lattice)
+            dis= norm(pos_cart)
+            !if (dis> Rcut) cycle
+            ! k and pos are both in direct coordinates
+            !kdotr=k(1)*pos_direct(1) + k(2)*pos_direct(2) + k(3)*pos_direct(3)
+            kdotr=k_cart(1)*pos_cart(1) + k_cart(2)*pos_cart(2) + k_cart(3)*pos_cart(3)
+            ratio= (cos(twopi*kdotr)+zi*sin(twopi*kdotr))/ndegen(iR)
+            ! velocity in direct coordinates
+            do i=1, 3
+               velocity_Wannier(i1, i2, i)=velocity_Wannier(i1, i2, i)+ &
+                  zi*pos_cart(i)*HmnR(i1, i2, iR)*ratio
+            enddo ! i
+            ! transform velocity from direct to Carteisn
+            !do i=1, 3
+            !   velocity_Wannier(i1, i2, i)= velocity_Wannier_direct(i1, i2, 1)*Origin_cell%lattice(i, 1)+ &
+            !   velocity_Wannier_direct(i1, i2, 2)*Origin_cell%lattice(i, 2)+ &
+            !   velocity_Wannier_direct(i1, i2, 3)*Origin_cell%lattice(i, 3)
+            !enddo !i
+         enddo ! i2
+      enddo ! i1
+   enddo ! iR
+
+   return
+end subroutine dHdk_atomicgauge_new
+
+
 
 subroutine dHdk_atomicgauge_Ham(k, eigvec, Vmn_Ham)
    !> Velocity operator in Hamiltonian basis using atomic gauge

@@ -34,27 +34,72 @@
      implicit none
     
      integer :: iR, ik, ikx, iky, ikz
-     integer :: i, m, ie, ieta, iT
+     integer :: i, m, ie, ieta, iT, n, ialpha
      integer :: ierr, knv3
      integer :: NumberofEta
+
+   
+     real(dp) :: mu, Beta_fake, deno_fac, eta_local, time_start, time_end
+     real(dp) :: k(3)
+
+     ! eigen value of H
+     real(dp), allocatable :: W(:)
+     complex(dp), allocatable :: Hamk_bulk(:, :)
+     complex(dp), allocatable :: UU(:, :) 
+
+     complex(dp), allocatable :: Vmn_Ham(:, :, :)
+     complex(dp), allocatable :: Vmn_wann(:, :, :)
+
+     !> Fermi-Dirac distribution
+     real(dp), external :: fermi
 
      !> conductivity  dim= OmegaNum
      real(dp), allocatable :: energy(:)
      real(dp), allocatable :: sigma_tensor_ahc(:, :, :)
+     real(dp), allocatable :: sigma_tensor_ahc_mpi(:, :, :)
+
+     real(dp),allocatable :: Omega_Berry(:)
+     real(dp),allocatable :: Omega_Berry_t(:)
 
      real(dp), allocatable :: eta_array(:)
-     real(dp), allocatable :: T_list(:)
+     !real(dp), allocatable :: T_list(:)
+
+     integer, allocatable :: ibeta(:)
 
      character*40 :: ahcfilename, etaname
 
-     NumberofEta = 9 
+     NumberofEta = 1 
+     
+     allocate( W (Num_wann))
+     allocate( Hamk_bulk(Num_wann, Num_wann))
+     allocate( UU(Num_wann, Num_wann))
 
      allocate(eta_array(NumberofEta))
      allocate( energy(OmegaNum))
-     allocate( sigma_tensor_ahc    (3, OmegaNum, NumberofEta))
+     allocate( sigma_tensor_ahc    (OmegaNum, 3, NumberofEta))
+     allocate( sigma_tensor_ahc_mpi    (OmegaNum, 3, NumberofEta))
+
+     allocate(Omega_Berry(Num_wann))
+     allocate(Omega_Berry_t(Num_wann))
+
+     allocate(Vmn_Ham(Num_wann, Num_wann, 3))
+     allocate(Vmn_wann(Num_wann, Num_wann, 3))
+     
+     allocate(ibeta(3))
+
+
+
+
+
      sigma_tensor_ahc    = 0d0
-      
-     eta_array=(/0.1d0, 0.2d0, 0.4d0, 0.8d0, 1.0d0, 2d0, 4d0, 8d0, 10d0/)
+     sigma_tensor_ahc_mpi= 0d0
+     Hamk_bulk=0d0
+     UU= 0d0
+     Vmn_wann= 0d0
+     
+     ibeta =(/2, 3, 1/)
+     !eta_array=(/0.1d0, 0.2d0, 0.4d0, 0.8d0, 1.0d0, 2d0, 4d0, 8d0, 10d0/)
+     eta_array=(/1.0d0/)
      eta_array= eta_array*Eta_Arc
 
 
@@ -68,15 +113,101 @@
      enddo ! ie
 
      !> temperature
-     do iT=1, NumT
-         if (NumT>1) then
-            T_list(iT)= Tmin+(Tmax-Tmin)*(iT-1d0)/dble(NumT-1)
-         else
-            T_list= Tmin
-         endif
-     enddo ! iT
+     !do iT=1, NumT
+     !    if (NumT>1) then
+     !       T_list(iT)= Tmin+(Tmax-Tmin)*(iT-1d0)/dble(NumT-1)
+     !    else
+     !       T_list= Tmin
+     !    endif
+     !enddo ! iT
 
-     call  sigma_ahc_vary_ChemicalPotential(OmegaNum, energy, NumberofEta, eta_array, sigma_tensor_ahc)
+     !call  sigma_ahc_vary_ChemicalPotential(OmegaNum, energy, NumberofEta, eta_array, sigma_tensor_ahc)
+
+     knv3= Nk1*Nk2*Nk3
+
+     call now(time_start) 
+     do ik= 1+ cpuid, knv3, num_cpu
+        if (cpuid.eq.0.and. mod(ik/num_cpu, 100).eq.0) then
+           call now(time_end) 
+           write(stdout, '(a, i18, "/", i18, a, f10.2, "s")') 'ik/knv3', &
+           ik, knv3, '  time left', (knv3-ik)*(time_end-time_start)/num_cpu/100d0
+           time_start= time_end
+        endif
+
+        ikx= (ik-1)/(nk2*nk3)+1
+        iky= ((ik-1-(ikx-1)*Nk2*Nk3)/nk3)+1
+        ikz= (ik-(iky-1)*Nk3- (ikx-1)*Nk2*Nk3)
+        k= K3D_start_cube+ K3D_vec1_cube*(ikx-1)/dble(nk1)  &
+         + K3D_vec2_cube*(iky-1)/dble(nk2)  &
+         + K3D_vec3_cube*(ikz-1)/dble(nk3)
+
+        ! calculation bulk hamiltonian by a direct Fourier transformation of HmnR
+        call ham_bulk_atomicgauge(k, Hamk_bulk)
+        !call ham_bulk_latticegauge(k, Hamk_bulk)
+   
+        !> diagonalization by call zheev in lapack
+        UU=Hamk_bulk
+        call eigensystem_c( 'V', 'U', Num_wann, UU, W)
+  
+        !> get velocity operator in Wannier basis
+        !> \partial_k H_nm
+        call dHdk_atomicgauge(k, Vmn_wann)
+        !call dHdk_latticegauge_wann(k, Vmn_wann)
+
+           do ialpha= 1, 3
+              call rotation_to_Ham_basis(UU, Vmn_wann(:, :, ialpha), Vmn_Ham(:, :, ialpha))
+              do ieta= 1, NumberofEta
+                 eta_local = eta_array(ieta)
+                 !> \Omega_spin^l_n^{\gamma}(k)=-2\sum_{m}*aimag(Im({js(\gamma),v(\alpha)}/2)_nm*v_beta_mn))/((w(n)-w(m))^2+eta_arc^2)
+                    Omega_Berry= 0d0
+                    do n= 1, Num_wann
+                       do m= 1, Num_wann
+                          if (m==n) cycle
+                          deno_fac= -2d0/((W(n)-W(m))**2+ eta_local**2)
+                          Omega_Berry(n)= Omega_Berry(n)+ &
+                             aimag(Vmn_Ham(n, m, ialpha)*Vmn_Ham(m, n, ibeta(ialpha)))*deno_fac
+                       enddo
+                    enddo
+        
+                    !> consider the Fermi-distribution according to the broadening Earc_eta
+                    Beta_fake= 1d0/eta_local
+
+                    do ie=1, OmegaNum
+                       mu = energy(ie)
+                       do n= 1, Num_wann
+                        if (W(n)-mu<0d0) then
+                          Omega_Berry_t(n)= Omega_Berry(n)
+                        else
+                           Omega_Berry_t(n)= 0d0
+                        endif
+                       enddo
+   
+                       !> sum over all  Berry curvature below chemical potential mu
+                       sigma_tensor_ahc_mpi(ie, ialpha, ieta)= &
+                       sigma_tensor_ahc_mpi(ie, ialpha, ieta)+ &
+                          sum(Omega_Berry_t(:))
+                    enddo ! ie
+                 !enddo ! ibeta  v
+              enddo ! ieta=1, NumberofEta
+           enddo ! ialpha  j
+        !enddo ! igamma  spin
+     enddo ! ik
+
+#if defined (MPI)
+     call mpi_allreduce(sigma_tensor_ahc_mpi,sigma_tensor_ahc,size(sigma_tensor_ahc),&
+                       mpi_dp,mpi_sum,mpi_cmw,ierr)
+#else
+     sigma_tensor_ahc= sigma_tensor_ahc_mpi
+#endif
+
+     !> in the latest version, we use the atomic unit
+     !> in unit of ((hbar/e)(Ohm*m)^-1
+     sigma_tensor_ahc= sigma_tensor_ahc/dble(knv3)/Origin_cell%CellVolume*&
+        Echarge**2/hbar/Bohr_radius*kCubeVolume/Origin_cell%ReciprocalCellVolume/2d0
+
+     !> in unit of ((hbar/e)(Ohm*cm)^-1
+     sigma_tensor_ahc= sigma_tensor_ahc/100d0
+
 
      outfileindex= outfileindex+ 1
      if (cpuid.eq.0) then
@@ -88,9 +219,9 @@
            write(outfileindex, "('#column', i5, 3000i16)")(i, i=1, 4)
            write(outfileindex, '("#",a13, 20a16)')'Eenergy (eV)', '\sigma_xy', '\sigma_yz', '\sigma_zx'
            do ie=1, OmegaNum
-              write(outfileindex, '(200E16.8)')energy(ie)/eV2Hartree, sigma_tensor_ahc(3, ie, ieta), &
-                                                                      sigma_tensor_ahc(1, ie, ieta), &
-                                                                      sigma_tensor_ahc(2, ie, ieta)
+              write(outfileindex, '(200E16.8)')energy(ie)/eV2Hartree, sigma_tensor_ahc(ie, 1, ieta), &
+                                                                      sigma_tensor_ahc(ie, 2, ieta), &
+                                                                      sigma_tensor_ahc(ie, 3, ieta)
            
            enddo ! ie
            close(outfileindex)
@@ -503,11 +634,10 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      integer :: m, n, i, j, ie, ialpha, ibeta, igamma
      integer :: ierr, knv3, nwann
      integer :: NumberofEta
-     
-     real(dp) :: mu, Beta_fake, eta_local
+
+     real(dp) :: mu, Beta_fake, deno_fac, eta_local
      real(dp) :: k(3)
-     complex(dp) :: deno_fac_1
-     complex(dp) :: deno_fac_2
+
      real(dp) :: time_start, time_end
 
      ! eigen value of H
@@ -520,21 +650,9 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
 
      !> sigma^gamma_{alpha, beta}, alpha, beta, gamma=1,2,3 for x, y, z
      !>  sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
-
-     !> Berry curvature vectors for all bands
-     !if (Photon_E == 0d0) then
-     ! real(dp), allocatable :: sigma_tensor_shc(:, :, :, :, :)
-     ! real(dp), allocatable :: sigma_tensor_shc_mpi(:, :, :, :, :)
-
-     ! real(dp),allocatable :: Omega_spin(:)
-     ! real(dp),allocatable :: Omega_spin_t(:)
-     !else
-     complex(dp), allocatable :: sigma_tensor_shc(:, :, :, :, :)
-     complex(dp), allocatable :: sigma_tensor_shc_mpi(:, :, :, :, :)
-
-     complex(dp),allocatable :: Omega_spin(:)
-     complex(dp),allocatable :: Omega_spin_t(:)
-     !endif
+     real(dp), allocatable :: sigma_tensor_shc(:, :, :, :, :)
+     real(dp), allocatable :: sigma_tensor_shc_mpi(:, :, :, :, :)
+     
      !> Fermi-Dirac distribution
      real(dp), external :: fermi
 
@@ -544,8 +662,9 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      complex(dp), allocatable :: j_spin_gamma_alpha(:, :)
      complex(dp), allocatable :: mat_t(:, :)
 
-     
-
+     !> Berry curvature vectors for all bands
+     real(dp),allocatable :: Omega_spin(:)
+     real(dp),allocatable :: Omega_spin_t(:)
 
      ! spin operator matrix spin_sigma_x,spin_sigma_y in spin_sigma_z representation
      complex(Dp),allocatable :: pauli_matrices(:, :, :) 
@@ -553,7 +672,7 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      real(dp), allocatable :: eta_array(:)
      character(80) :: shcfilename, etaname
 
-     NumberofEta=1
+     NumberofEta=9
 
      allocate(Vmn_Ham(Num_wann, Num_wann, 3))
      allocate(Vmn_wann(Num_wann, Num_wann, 3))
@@ -580,8 +699,8 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      Vmn_wann= 0d0
      pauli_matrices= 0d0
  
-     !eta_array=(/0.1d0, 0.2d0, 0.4d0, 0.8d0, 1.0d0, 2d0, 4d0, 8d0, 10d0/)
-     eta_array =(/ 1d0 /)
+     eta_array=(/0.1d0, 0.2d0, 0.4d0, 0.8d0, 1.0d0, 2d0, 4d0, 8d0, 10d0/)
+     !eta_array=(/1.0d0/)
      eta_array= eta_array*Eta_Arc
 
      nwann= Num_wann/2
@@ -641,7 +760,7 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
   
         !> get velocity operator in Wannier basis
         !> \partial_k H_nm
-        call dHdk_atomicgauge(k, Vmn_wann)
+        call dHdk_atomicgauge_new(k, Vmn_wann)
 
         !> spin axis igamma= x, y, z
         do igamma= 1, 3
@@ -671,21 +790,15 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
                     do n= 1, Num_wann
                        do m= 1, Num_wann
                           if (m==n) cycle
-                           !if (Photon_E == 0d0) then
-                           ! deno_fac= -2d0/((W(n)-W(m))**2 + eta_local**2)
-                           !else
-                            deno_fac_1= zi*1d0/(W(n)-W(m))/((W(n)-W(m))+Photon_E*eV2Hartree+zi*eta_local)
-                            deno_fac_2= zi*1d0/(W(n)-W(m))/((W(n)-W(m))-Photon_E*eV2Hartree-zi*eta_local)
-                           !endif
+                          deno_fac= -2d0/((W(n)-W(m))**2+ eta_local**2)
                           Omega_spin(n)= Omega_spin(n)+ &
-                             j_spin_gamma_alpha(n, m)*Vmn_Ham(m, n, ibeta)*deno_fac_1 - &
-                             j_spin_gamma_alpha(m, n)*Vmn_Ham(n, m, ibeta)*deno_fac_2  
+                             aimag(j_spin_gamma_alpha(n, m)*Vmn_Ham(m, n, ibeta))*deno_fac
                        enddo
                     enddo
         
                     !> consider the Fermi-distribution according to the broadening Earc_eta
-                    Beta_fake= 1d0/eta_local
-            
+                    !Beta_fake= 1d0/eta_local
+                     Beta_fake=1000000000d0
                     do ie=1, OmegaNum
                        mu = energy(ie)
                        do n= 1, Num_wann
@@ -723,7 +836,7 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
      if (cpuid.eq.0) then
         do ieta=1, NumberofEta
            write(etaname, '(f12.2)')eta_array(ieta)*1000d0/eV2Hartree
-           write(shcfilename, '(7a)')'sigma_shc_eta', trim(adjustl(etaname)), 'meV_Re.txt'
+           write(shcfilename, '(7a)')'sigma_shc_eta', trim(adjustl(etaname)), 'meV.txt'
            open(unit=outfileindex, file=shcfilename)
            write(outfileindex, '("#",10a)')' Spin hall conductivity in unit of (hbar/e)S/cm,', 'Brodening eta= ',  trim(adjustl(etaname)), ' meV'
            write(outfileindex, "('#column', i5, 3000i16)")(i, i=1, 28)
@@ -737,37 +850,7 @@ subroutine sigma_ahc_vary_ChemicalPotential(NumOfmu, mulist, NumberofEta, eta_ar
               do ialpha=1, 3
               do ibeta =1, 3
                  if (ialpha*ibeta*igamma/=27)then
-                    write(outfileindex, '(200E16.8)', advance='no') real(sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta))
-                 else
-                    write(outfileindex, '(200E16.8)', advance='yes') sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
-                 endif
-              enddo
-              enddo
-              enddo
-           enddo
-        enddo ! ieta
-        close(outfileindex)
-     endif
-
-     outfileindex= outfileindex+ 1
-     if (cpuid.eq.0) then
-        do ieta=1, NumberofEta
-           write(etaname, '(f12.2)')eta_array(ieta)*1000d0/eV2Hartree
-           write(shcfilename, '(7a)')'sigma_shc_eta', trim(adjustl(etaname)), 'meV_Im.txt'
-           open(unit=outfileindex, file=shcfilename)
-           write(outfileindex, '("#",10a)')' Spin hall conductivity in unit of (hbar/e)S/cm,', 'Brodening eta= ',  trim(adjustl(etaname)), ' meV'
-           write(outfileindex, "('#column', i5, 3000i16)")(i, i=1, 28)
-           write(outfileindex, '("#",a13, 27a16)')'Eenergy (eV)', &
-             'xx^x', 'xy^x', 'xz^x', 'yx^x', 'yy^x', 'yz^x', 'zx^x', 'zy^x', 'zz^x', &
-             'xx^y', 'xy^y', 'xz^y', 'yx^y', 'yy^y', 'yz^y', 'zx^y', 'zy^y', 'zz^y', &
-             'xx^z', 'xy^z', 'xz^z', 'yx^z', 'yy^z', 'yz^z', 'zx^z', 'zy^z', 'zz^z'
-           do ie=1, OmegaNum
-              write(outfileindex, '(E16.8)', advance='no')energy(ie)/eV2Hartree
-              do igamma=1, 3
-              do ialpha=1, 3
-              do ibeta =1, 3
-                 if (ialpha*ibeta*igamma/=27)then
-                    write(outfileindex, '(200E16.8)', advance='no') aimag(sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta))
+                    write(outfileindex, '(200E16.8)', advance='no') sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
                  else
                     write(outfileindex, '(200E16.8)', advance='yes') sigma_tensor_shc(ie, igamma, ialpha, ibeta, ieta)
                  endif
